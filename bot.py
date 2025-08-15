@@ -1,6 +1,21 @@
 
 import discord
 from discord.ext import commands
+from threading import Thread
+from flask import Flask
+import os
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot está correr no render"
+
+def run_flask():
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
+
+Thread(target=run_flask).start()
 
 TOKEN = "MTQwNTk0NTEwOTA2NDg0NzUxMA.GONGq3.fjTq_8MRvQF8pF8emzyi7ftNWW4tjH3FboaGOo"
 LOG_CHANNEL_ID = 1405758758025695232
@@ -27,18 +42,6 @@ async def on_ready():
 	embed = discord.Embed(title="Bot Online", description=f"{bot.user} agora está online .", color=0x00ff00)
 	await send_embed(embed)
 
-@bot.event
-async def on_message(message):
-	if message.author == bot.user:
-		return
-	embed = discord.Embed(title="〽️Menssage Enviada", color=0x3498db)
-	embed.add_field(name="Autor", value=f"{message.author} ({message.author.id})", inline=False)
-	embed.add_field(name="Channel", value=f"{message.channel} ({message.channel.id})", inline=False)
-	embed.add_field(name="Mensagem", value=message.content, inline=False)
-	embed.add_field(name="Data da Mensagem", value=message.created_at.strftime("%Y-%m-%d %H:%M:%S"), inline=False)
-	embed.set_footer(text=f"ID Mensagem: {message.id}")
-	await send_embed(embed)
-	await bot.process_commands(message)
 
 @bot.event
 async def on_message_edit(before, after):
@@ -97,16 +100,16 @@ async def on_message_delete(message):
 
 @bot.event
 async def on_member_join(member):
-	embed=discord.embed(
+	embed=discord.Embed(
 		description=f"{member} ({member.id}) Entrou no servidor.",
 		color=0x2ecc71
 	)
 	embed.set_author(name=str(member), icon_url=member.avatar.url if member.avatar else None)
 	embed.set_thumbnail(url=member.avatar.url if member.avatar else None)
-	create_at =member.created_at.stfrftime("%B-%d,%Y %I:%M:%p")
+	created_at = member.created_at.strftime("%B-%d,%Y %I:%M:%p")
 	embed.add_field(
 		name="Criação da conta",
-		value=f"{create_at}(há {(discord.utils.utcnow() - member.created_at).days// 365} anos )",
+		value=f"{created_at} (há {(discord.utils.utcnow() - member.created_at).days// 365} anos )",
 		inline=False
 	)
 	await send_embed(embed)

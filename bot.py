@@ -23,7 +23,7 @@ async def send_embed(embed):
 
 @bot.event
 async def on_ready():
-	print(f"Logged in as {bot.user}")
+	print(f"✅Logged in as {bot.user}")
 	embed = discord.Embed(title="Bot Online", description=f"{bot.user} agora está online .", color=0x00ff00)
 	await send_embed(embed)
 
@@ -31,7 +31,7 @@ async def on_ready():
 async def on_message(message):
 	if message.author == bot.user:
 		return
-	embed = discord.Embed(title="Menssage Enviada", color=0x3498db)
+	embed = discord.Embed(title="〽️Menssage Enviada", color=0x3498db)
 	embed.add_field(name="Autor", value=f"{message.author} ({message.author.id})", inline=False)
 	embed.add_field(name="Channel", value=f"{message.channel} ({message.channel.id})", inline=False)
 	embed.add_field(name="Mensagem", value=message.content, inline=False)

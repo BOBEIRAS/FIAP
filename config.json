@@ -1,0 +1,43 @@
+{
+  "bot": {
+    "token": "MTQwNTk0NTEwOTA2NDg0NzUxMA.GONGq3.fjTq_8MRvQF8pF8emzyi7ftNWW4tjH3FboaGOo",
+    "prefix": "!",
+    "default_log_channel": "1405758758025695232"
+  },
+  "multi_server": {
+    "enabled": true,
+    "config_storage": "json_files",
+    "guild_configs_file": "guild_configs.json"
+  },
+  "features": {
+    "logging": {
+      "enabled": true,
+      "log_events": [
+        "message_edit",
+        "message_delete",
+        "member_join",
+        "member_remove",
+        "member_ban",
+        "invite_create",
+        "member_update"
+      ],
+      "default_log_channel_fallback": true
+    },
+    "slash_commands": true,
+    "auto_sync_commands": true
+  },
+  "embeds": {
+    "colors": {
+      "success": "#00ff00",
+      "error": "#ff0000",
+      "warning": "#ffff00",
+      "info": "#3498db",
+      "neutral": "#7289da"
+    }
+  },
+  "server_management": {
+    "allow_custom_log_channels": true,
+    "allow_custom_prefixes": false,
+    "max_servers": 100
+  }
+}

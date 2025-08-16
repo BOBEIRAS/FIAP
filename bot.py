@@ -4,10 +4,10 @@ from discord.ext import commands
 from threading import Thread
 from flask import Flask
 import datetime
+import json
 
-# Store bot start time for uptime calculation
+# ================= Flask para manter vivo no Render ==================
 bot_start_time = datetime.datetime.now()
-
 app = Flask(__name__)
 
 @app.route('/')
@@ -20,8 +20,14 @@ def run_flask():
 
 Thread(target=run_flask).start()
 
-TOKEN = "MTQwNTk0NTEwOTA2NDg0NzUxMA.GONGq3.fjTq_8MRvQF8pF8emzyi7ftNWW4tjH3FboaGOo"
-LOG_CHANNEL_ID = 1405758758025695232
+# ================= Configuração do Bot ==================
+# Load configuration from config.json
+with open('config.json', 'r', encoding='utf-8') as config_file:
+    config = json.load(config_file)
+
+TOKEN = config['bot']['token']
+PREFIX = config['bot']['prefix']
+DEFAULT_LOG_CHANNEL = int(config['bot']['default_log_channel'])
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -29,41 +35,80 @@ intents.members = True
 intents.guilds = True
 intents.messages = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 
-def get_log_channel():
-	return bot.get_channel(LOG_CHANNEL_ID)
+# ================= Multi-Server JSON Storage ==================
+GUILD_CONFIG_FILE = "guild_configs.json"
 
-async def send_embed(embed):
-	channel = get_log_channel()
-	if channel:
-		await channel.send(embed=embed)
+def load_guild_configs():
+    """Load guild configurations from JSON file"""
+    try:
+        with open(GUILD_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
+def save_guild_configs(data):
+    """Save guild configurations to JSON file"""
+    with open(GUILD_CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+# Load guild configurations
+guild_configs = load_guild_configs()
+
+def get_guild_config(guild_id):
+    """Get configuration for a specific guild"""
+    guild_id_str = str(guild_id)
+    if guild_id_str not in guild_configs:
+        guild_configs[guild_id_str] = {
+            "log_channel": None,
+            "welcome_channel": None,
+            "log_events": config['features']['logging']['log_events']
+        }
+        save_guild_configs(guild_configs)
+    return guild_configs[guild_id_str]
+
+def set_guild_log_channel(guild_id, channel_id):
+    """Set log channel for a specific guild"""
+    guild_config = get_guild_config(guild_id)
+    guild_config['log_channel'] = channel_id
+    save_guild_configs(guild_configs)
+
+def get_log_channel(guild_id):
+    """Get log channel for a specific guild"""
+    guild_config = get_guild_config(guild_id)
+    channel_id = guild_config.get('log_channel')
+    
+    if channel_id:
+        return bot.get_channel(channel_id)
+    
+    # Fallback to default log channel
+    return bot.get_channel(DEFAULT_LOG_CHANNEL)
+
+async def send_embed(guild, embed):
+    channel = get_log_channel(guild.id)
+    if channel:
+        await channel.send(embed=embed)
+
+# ================= Eventos ==================
 @bot.event
+
 async def on_ready():
-	print(f"✅Logged in as {bot.user}")
-	embed = discord.Embed(title="Bot Online", description=f"{bot.user} agora está online .", color=0x00ff00)
-	await send_embed(embed)
+    print(f"✅ Logged in as {bot.user}")
+    try:
+        synced = await bot.tree.sync()
+        print(f"🔗 Synced {len(synced)} slash command(s).")
+    except Exception as e:
+        print(f"❌ Error syncing commands: {e}")
 
-@bot.tree.command(name="status", description="Mostra o status do bot")
-async def status(interaction: discord.Interaction):
-    uptime = datetime.datetime.now() - bot_start_time
-    days = uptime.days
-    hours, remainder = divmod(uptime.seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    embed = discord.Embed(
-        title="🤖 Bot Status",
-        color=0x00ff00
-    )
-    embed.add_field(name="Status", value="✅ Online and running", inline=False)
-    embed.add_field(name="Uptime", value=f"{days}d {hours}h {minutes}m {seconds}s", inline=False)
-    embed.add_field(name="Started", value=bot_start_time.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
-    embed.add_field(name="Commands Available", value="/status", inline=False)
-    embed.set_footer(text=f"Bot: {bot.user} | {datetime.datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
-
-    await interaction.response.send_message(embed=embed)    
-
+# Quando o bot ficar online, notifica se já houver canal de logs
+    for guild in bot.guilds:
+        embed = discord.Embed(
+            title="🤖 Bot Online",
+            description=f"{bot.user} agora está online.",
+            color=0x00ff00
+        )
+        await send_embed(guild, embed)
 
 @bot.event
 async def on_message_edit(before, after):
@@ -137,6 +182,58 @@ async def on_member_join(member):
 	await send_embed(embed)
 
 @bot.event
+async def on_member_remove(member):
+    guild = member.guild
+    async for entry in guild.audit_logs(action=discord.AuditLogAction.kick, limit=1):
+        if entry.target.id == member.id:
+            embed = discord.Embed(title="Membro Kickado", color=0x1abc9c)
+            embed.add_field(name="User", value=f"{member}", inline=False)
+            embed.add_field(name="Por", value=f"{entry.user}", inline=False)
+            embed.add_field(name="Razão", value=entry.reason or "Sem razão", inline=False)
+            await send_embed(guild, embed)
+            return
+    embed = discord.Embed(title="Membro Saiu", description=f"{member} saiu do servidor.", color=0xe67e22)
+    await send_embed(guild, embed)
+
+@bot.event
+async def on_member_ban(guild, user):
+    reason = None
+    try:
+        ban_entry = await guild.fetch_ban(user)
+        reason = ban_entry.reason
+    except Exception:
+        reason = None
+    embed = discord.Embed(title="Membro Banido", color=0x8e44ad)
+    embed.add_field(name="User", value=f"{user} ({user.id})", inline=False)
+    embed.add_field(name="Guild", value=f"{guild.name} ({guild.id})", inline=False)
+    embed.add_field(name="Reason", value=reason or "No reason provided", inline=False)
+    embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
+    await send_embed(embed)
+
+@bot.event
+async def on_invite_create(invite):
+    embed = discord.Embed(
+        description=f"{invite.inviter.mention} criou a convite **{invite.code}** em {invite.channel.mention}",
+        color=0x7289da
+    )
+    embed.set_author(name=str(invite.inviter), icon_url=invite.inviter.avatar.url if invite.inviter.avatar else None)
+    # Expiração
+    expires_in = "Nunca expira" if invite.max_age == 0 else f"em {invite.max_age // 86400} dias"
+    embed.add_field(name="Expiração", value=expires_in, inline=False)
+    # IDs
+    embed.add_field(
+        name="IDs",
+        value=(
+            f"**{invite.code}**\n"
+            f"{invite.inviter.mention} (`{invite.inviter.id}`)\n"
+            f"{invite.channel.mention} (`{invite.channel.id}`)"
+        ),
+        inline=False
+    )
+    embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
+    await send_embed(embed)    
+    
+@bot.event
 async def on_member_update(before, after):
     added_roles = [role for role in after.roles if role not in before.roles]
     if added_roles:
@@ -166,60 +263,47 @@ async def on_member_update(before, after):
         embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
         await send_embed(embed)
 
-@bot.event
-async def on_invite_create(invite):
+
+# ================= Slash Commands ==================
+@bot.tree.command(name="status", description="Mostra o status do bot")
+async def status(interaction: discord.Interaction):
+    uptime = datetime.datetime.now() - bot_start_time
+    days = uptime.days
+    hours, remainder = divmod(uptime.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
     embed = discord.Embed(
-        description=f"{invite.inviter.mention} criou a convite **{invite.code}** em {invite.channel.mention}",
-        color=0x7289da
+        title="🤖 Bot Status",
+        color=0x00ff00
     )
-    embed.set_author(name=str(invite.inviter), icon_url=invite.inviter.avatar.url if invite.inviter.avatar else None)
-    # Expiração
-    expires_in = "Nunca expira" if invite.max_age == 0 else f"em {invite.max_age // 86400} dias"
-    embed.add_field(name="Expiração", value=expires_in, inline=False)
-    # IDs
-    embed.add_field(
-        name="IDs",
-        value=(
-            f"**{invite.code}**\n"
-            f"{invite.inviter.mention} (`{invite.inviter.id}`)\n"
-            f"{invite.channel.mention} (`{invite.channel.id}`)"
-        ),
-        inline=False
+    embed.add_field(name="Status", value="✅ Online and running", inline=False)
+    embed.add_field(name="Uptime", value=f"{days}d {hours}h {minutes}m {seconds}s", inline=False)
+    embed.add_field(name="Started", value=bot_start_time.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
+    embed.add_field(name="Commands", value="/status, /help, /setlogchannel", inline=False)
+
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="help", description="Mostra a lista de comandos disponíveis")
+async def help_command(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="📖 Lista de Comandos",
+        description="Aqui estão os comandos disponíveis:",
+        color=0x3498db
     )
-    embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
-    await send_embed(embed)
+    embed.add_field(name="/status", value="Mostra o status e uptime do bot.", inline=False)
+    embed.add_field(name="/help", value="Mostra esta mensagem de ajuda.", inline=False)
+    embed.add_field(name="/setlogchannel", value="Define o canal de logs para este servidor.", inline=False)
+    embed.set_footer(text=f"Bot: {bot.user}")
     
-@bot.event
-async def on_member_ban(guild, user):
-    reason = None
-    try:
-        ban_entry = await guild.fetch_ban(user)
-        reason = ban_entry.reason
-    except Exception:
-        reason = None
-    embed = discord.Embed(title="Membro Banido", color=0x8e44ad)
-    embed.add_field(name="User", value=f"{user} ({user.id})", inline=False)
-    embed.add_field(name="Guild", value=f"{guild.name} ({guild.id})", inline=False)
-    embed.add_field(name="Reason", value=reason or "No reason provided", inline=False)
-    embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
-    await send_embed(embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
+@bot.tree.command(name="setlogchannel", description="Define o canal onde os logs serão enviados")
+@discord.app_commands.checks.has_permissions(administrator=True)
+async def setlogchannel(interaction: discord.Interaction, canal: discord.TextChannel):
+    guild_id = str(interaction.guild.id)
+    set_guild_log_channel(guild_id, canal.id)
 
-@bot.event
-async def on_member_remove(member):
-	# Check if the member was kicked using audit logs
-	guild = member.guild
-	async for entry in guild.audit_logs(action=discord.AuditLogAction.kick, limit=1):
-		if entry.target.id == member.id:
-			embed = discord.Embed(title="Membro Kickado", color=0x1abc9c)
-			embed.add_field(name="User", value=f"{member} ({member.id})", inline=False)
-			embed.add_field(name="Por", value=f"{entry.user} ({entry.user.id})", inline=False)
-			embed.add_field(name="Razão", value=entry.reason or "No reason provided", inline=False)
-			await send_embed(embed)
-			return
-	# If not kicked, treat as normal leave
-	embed = discord.Embed(title="Membro saiu", description=f"{member} ({member.id}) Saiu do Servidor.", color=0xe67e22)
-	await send_embed(embed)
+    await interaction.response.send_message(f"✅ Canal de logs definido para {canal.mention}", ephemeral=True)
 
-
+# ================= Run ==================
 bot.run(TOKEN)

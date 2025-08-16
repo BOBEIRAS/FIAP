@@ -1,2 +1,4 @@
-discord.py>=2.0.0
-flask
+discord.py==2.5.2
+Flask==2.3.3
+aiohttp==3.8.5
+

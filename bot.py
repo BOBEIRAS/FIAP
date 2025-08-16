@@ -1,5 +1,6 @@
 import os
 import discord
+from discord.ext import commands
 from threading import Thread
 from flask import Flask
 import datetime
@@ -28,7 +29,7 @@ intents.members = True
 intents.guilds = True
 intents.messages = True
 
-bot = discord.Bot(intents=intents)
+bot = commands.Bot(command_prefix='/', intents=intents)
 
 def get_log_channel(guild_id=None):
     """Get log channel for a specific guild, or use default if none specified."""
@@ -56,7 +57,7 @@ async def setlogchannel(ctx, channel: discord.TextChannel):
 @bot.slash_command(name='test', description='Test command to check if the bot is responding.')
 async def test(ctx):
     """Simple test command."""
-    await ctx.respond("Hello! The bot is online and responding without an embed.")
+    await ctx.respond("estou a responder sem o embeded.")
 
 @bot.event
 async def on_ready():

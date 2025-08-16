@@ -62,7 +62,7 @@ async def status(interaction: discord.Interaction):
     embed.add_field(name="Commands Available", value="/status", inline=False)
     embed.set_footer(text=f"Bot: {bot.user} | {datetime.datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed)    
 
 
 @bot.event

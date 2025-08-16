@@ -21,7 +21,8 @@ def run_flask():
 Thread(target=run_flask).start()
 
 # ================= Configuração do Bot ==================
-# Load configuration from config.json
+# Carrega as configurações do bot
+
 with open('config.json', 'r', encoding='utf-8') as config_file:
     config = json.load(config_file)
 
@@ -53,7 +54,7 @@ def save_guild_configs(data):
     with open(GUILD_CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-# Load guild configurations
+# carrega as configurações dos servidores
 guild_configs = load_guild_configs()
 
 def get_guild_config(guild_id):
@@ -62,8 +63,7 @@ def get_guild_config(guild_id):
     if guild_id_str not in guild_configs:
         guild_configs[guild_id_str] = {
             "log_channel": None,
-            "welcome_channel": None,
-            "log_events": config['features']['logging']['log_events']
+            "welcome_channel": None
         }
         save_guild_configs(guild_configs)
     return guild_configs[guild_id_str]
@@ -82,17 +82,30 @@ def get_log_channel(guild_id):
     if channel_id:
         return bot.get_channel(channel_id)
     
-    # Fallback to default log channel
+    # voltar para o canal padrão se não houver configuração específica
     return bot.get_channel(DEFAULT_LOG_CHANNEL)
 
 async def send_embed(guild, embed):
+    """Send embed to the log channel for a specific guild"""
+    if not guild:
+        print("❌ No guild provided for logging")
+        return False
+        
     channel = get_log_channel(guild.id)
     if channel:
-        await channel.send(embed=embed)
+        try:
+            await channel.send(embed=embed)
+            return True
+        except discord.Forbidden:
+            print(f"❌ Bot doesn't have permission to send messages in {channel.name}")
+        except discord.HTTPException as e:
+            print(f"❌ Failed to send embed: {e}")
+    else:
+        print(f"❌ No log channel configured for guild {guild.name}")
+    return False
 
 # ================= Eventos ==================
 @bot.event
-
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
     try:
@@ -101,7 +114,7 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Error syncing commands: {e}")
 
-# Quando o bot ficar online, notifica se já houver canal de logs
+    # Quando o bot ficar online, notifica se já houver canal de logs
     for guild in bot.guilds:
         embed = discord.Embed(
             title="🤖 Bot Online",
@@ -112,36 +125,38 @@ async def on_ready():
 
 @bot.event
 async def on_message_edit(before, after):
-	if before.author == bot.user:
-		return
-	embed=discord.Embed(
-		title="📝 Mensagem Editada",
-		color=0xf1c40f
-	)
-	embed .set_author(name=str(before.author),icon_url=before.author.avatar.url if before.author.avatar else None)
-	embed.add_field(name="Canal",value=f"{before.channel.mention} (´{before.channel.id}`)",inline=False)
-	embed.add_field(name="Antiga Mensagem", value=before.content or "(empty)", inline=False)
-	embed.add_field(name="Nova Mensagem", value=after.content or "(empty)", inline=False)
-	embed.add_field(
-		name="Data da Mensagem",
-		value=f"{before.created_at.strftime('%Y-%m-%d %H:%M:%S')}(há {(discord.utils.utcnow() - before.created_at).seconds // 3600} horas )",
-		inline=False
-	)
-	embed.add_field(
-		name="IDs",
-		value=(
-			f"Mensagem(`{before.id}`)\n"
-			f"Canal(`{before.channel.id}`)\n"
-			f"{before.author.mention}(`{before.author.id}`)"
-		),
-		inline=False
-	)
-	await send_embed(embed)
+    if before.author == bot.user:
+        return
+    
+    embed = discord.Embed(
+        title="📝 Mensagem Editada",
+        color=0xf1c40f
+    )
+    embed.set_author(name=str(before.author), icon_url=before.author.avatar.url if before.author.avatar else None)
+    embed.add_field(name="Canal", value=f"{before.channel.mention} (`{before.channel.id}`)", inline=False)
+    embed.add_field(name="Antiga Mensagem", value=before.content or "(empty)", inline=False)
+    embed.add_field(name="Nova Mensagem", value=after.content or "(empty)", inline=False)
+    embed.add_field(
+        name="Data da Mensagem",
+        value=f"{before.created_at.strftime('%Y-%m-%d %H:%M:%S')} (há {(discord.utils.utcnow() - before.created_at).seconds // 3600} horas)",
+        inline=False
+    )
+    embed.add_field(
+        name="IDs",
+        value=(
+            f"Mensagem(`{before.id}`)\n"
+            f"Canal(`{before.channel.id}`)\n"
+            f"{before.author.mention}(`{before.author.id}`)"
+        ),
+        inline=False
+    )
+    await send_embed(before.guild, embed)
 
 @bot.event
 async def on_message_delete(message):
     if message.author == bot.user:
         return
+    
     embed = discord.Embed(
         title="🏀 Mensagem Deletada",
         color=0xe74c3c
@@ -163,23 +178,23 @@ async def on_message_delete(message):
         inline=False
     )
     embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
-    await send_embed(embed)
+    await send_embed(message.guild, embed)
 
 @bot.event
 async def on_member_join(member):
-	embed=discord.Embed(
-		description=f"{member} ({member.id}) Entrou no servidor.",
-		color=0x2ecc71
-	)
-	embed.set_author(name=str(member), icon_url=member.avatar.url if member.avatar else None)
-	embed.set_thumbnail(url=member.avatar.url if member.avatar else None)
-	created_at = member.created_at.strftime("%B-%d,%Y %I:%M:%p")
-	embed.add_field(
-		name="Criação da conta",
-		value=f"{created_at} (há {(discord.utils.utcnow() - member.created_at).days// 365} anos )",
-		inline=False
-	)
-	await send_embed(embed)
+    embed = discord.Embed(
+        description=f"{member} ({member.id}) Entrou no servidor.",
+        color=0x2ecc71
+    )
+    embed.set_author(name=str(member), icon_url=member.avatar.url if member.avatar else None)
+    embed.set_thumbnail(url=member.avatar.url if member.avatar else None)
+    created_at = member.created_at.strftime("%B-%d,%Y %I:%M:%p")
+    embed.add_field(
+        name="Criação da conta",
+        value=f"{created_at} (há {(discord.utils.utcnow() - member.created_at).days// 365} anos)",
+        inline=False
+    )
+    await send_embed(member.guild, embed)
 
 @bot.event
 async def on_member_remove(member):
@@ -192,6 +207,7 @@ async def on_member_remove(member):
             embed.add_field(name="Razão", value=entry.reason or "Sem razão", inline=False)
             await send_embed(guild, embed)
             return
+    
     embed = discord.Embed(title="Membro Saiu", description=f"{member} saiu do servidor.", color=0xe67e22)
     await send_embed(guild, embed)
 
@@ -203,12 +219,13 @@ async def on_member_ban(guild, user):
         reason = ban_entry.reason
     except Exception:
         reason = None
+    
     embed = discord.Embed(title="Membro Banido", color=0x8e44ad)
     embed.add_field(name="User", value=f"{user} ({user.id})", inline=False)
     embed.add_field(name="Guild", value=f"{guild.name} ({guild.id})", inline=False)
     embed.add_field(name="Reason", value=reason or "No reason provided", inline=False)
     embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
-    await send_embed(embed)
+    await send_embed(guild, embed)
 
 @bot.event
 async def on_invite_create(invite):
@@ -217,10 +234,8 @@ async def on_invite_create(invite):
         color=0x7289da
     )
     embed.set_author(name=str(invite.inviter), icon_url=invite.inviter.avatar.url if invite.inviter.avatar else None)
-    # Expiração
     expires_in = "Nunca expira" if invite.max_age == 0 else f"em {invite.max_age // 86400} dias"
     embed.add_field(name="Expiração", value=expires_in, inline=False)
-    # IDs
     embed.add_field(
         name="IDs",
         value=(
@@ -231,8 +246,8 @@ async def on_invite_create(invite):
         inline=False
     )
     embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
-    await send_embed(embed)    
-    
+    await send_embed(invite.guild, embed)
+
 @bot.event
 async def on_member_update(before, after):
     added_roles = [role for role in after.roles if role not in before.roles]
@@ -241,7 +256,6 @@ async def on_member_update(before, after):
         embed.set_author(name=str(after), icon_url=after.avatar.url if after.avatar else None)
         roles_str = " ".join([role.mention for role in added_roles])
 
-        # Busca quem deu o cargo usando audit logs
         executor = None
         reason = "Cargo atribuído"
         async for entry in after.guild.audit_logs(action=discord.AuditLogAction.member_role_update, limit=5):
@@ -255,14 +269,12 @@ async def on_member_update(before, after):
 
         embed.add_field(name="Cargo(s) Dado(s)", value=f"+ {roles_str}", inline=False)
         embed.add_field(name="Razão", value=reason, inline=False)
-
         ids_value = f"{after.mention} (`{after.id}`)"
         if executor:
             ids_value += f"\n{executor.mention} (`{executor.id}`)"
         embed.add_field(name="IDs", value=ids_value, inline=False)
         embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
-        await send_embed(embed)
-
+        await send_embed(after.guild, embed)
 
 # ================= Slash Commands ==================
 @bot.tree.command(name="status", description="Mostra o status do bot")

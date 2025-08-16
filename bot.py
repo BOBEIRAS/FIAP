@@ -45,14 +45,13 @@ async def on_ready():
 	embed = discord.Embed(title="Bot Online", description=f"{bot.user} agora está online .", color=0x00ff00)
 	await send_embed(embed)
 
-@bot.command(name='status')
-async def status(ctx):
-    """Mostra o status do bot."""
+@bot.tree.command(name="status", description="Mostra o status do bot")
+async def status(interaction: discord.Interaction):
     uptime = datetime.datetime.now() - bot_start_time
     days = uptime.days
     hours, remainder = divmod(uptime.seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
-    
+
     embed = discord.Embed(
         title="🤖 Bot Status",
         color=0x00ff00
@@ -60,10 +59,10 @@ async def status(ctx):
     embed.add_field(name="Status", value="✅ Online and running", inline=False)
     embed.add_field(name="Uptime", value=f"{days}d {hours}h {minutes}m {seconds}s", inline=False)
     embed.add_field(name="Started", value=bot_start_time.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
-    embed.add_field(name="Commands Available", value="!start, !help, !status", inline=False)
+    embed.add_field(name="Commands Available", value="/status", inline=False)
     embed.set_footer(text=f"Bot: {bot.user} | {datetime.datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
-    
-    await ctx.send(embed=embed)
+
+    await interaction.response.send_message(embed=embed)
 
 
 @bot.event

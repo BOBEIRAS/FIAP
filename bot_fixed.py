@@ -53,6 +53,11 @@ async def setlogchannel(ctx, channel: discord.TextChannel):
     embed.set_footer(text=f"Comando executado por {ctx.author}")
     await ctx.respond(embed=embed)
 
+@bot.slash_command(name='test', description='Test command to check if the bot is responding.')
+async def test(ctx):
+    """Simple test command."""
+    await ctx.respond("Hello! The bot is online and responding without an embed.")
+
 @bot.event
 async def on_ready():
     print(f"✅Logged in as {bot.user}")

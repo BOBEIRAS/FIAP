@@ -1,9 +1,12 @@
-
+import os
 import discord
 from discord.ext import commands
 from threading import Thread
 from flask import Flask
-import os
+import datetime
+
+# Store bot start time for uptime calculation
+bot_start_time = datetime.datetime.now()
 
 app = Flask(__name__)
 
@@ -41,6 +44,26 @@ async def on_ready():
 	print(f"✅Logged in as {bot.user}")
 	embed = discord.Embed(title="Bot Online", description=f"{bot.user} agora está online .", color=0x00ff00)
 	await send_embed(embed)
+
+@bot.command(name='status')
+async def status(ctx):
+    """Mostra o status do bot."""
+    uptime = datetime.datetime.now() - bot_start_time
+    days = uptime.days
+    hours, remainder = divmod(uptime.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    embed = discord.Embed(
+        title="🤖 Bot Status",
+        color=0x00ff00
+    )
+    embed.add_field(name="Status", value="✅ Online and running", inline=False)
+    embed.add_field(name="Uptime", value=f"{days}d {hours}h {minutes}m {seconds}s", inline=False)
+    embed.add_field(name="Started", value=bot_start_time.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
+    embed.add_field(name="Commands Available", value="!start, !help, !status", inline=False)
+    embed.set_footer(text=f"Bot: {bot.user} | {datetime.datetime.now().strftime('%m/%d/%Y %I:%M %p')}")
+    
+    await ctx.send(embed=embed)
 
 
 @bot.event
@@ -113,12 +136,6 @@ async def on_member_join(member):
 		inline=False
 	)
 	await send_embed(embed)
-
-@bot.event
-async def on_member_remove(member):
-	embed = discord.Embed(title="Member Left", description=f"{member} ({member.id}) left the server.", color=0xe67e22)
-	await send_embed(embed)
-
 
 @bot.event
 async def on_member_update(before, after):

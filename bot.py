@@ -88,7 +88,6 @@ def get_log_channel(guild_id):
 async def send_embed(guild, embed):
     """Send embed to the log channel for a specific guild"""
     if not guild:
-        print("❌ No guild provided for logging")
         return False
         
     channel = get_log_channel(guild.id)
@@ -97,11 +96,9 @@ async def send_embed(guild, embed):
             await channel.send(embed=embed)
             return True
         except discord.Forbidden:
-            print(f"❌ Bot doesn't have permission to send messages in {channel.name}")
+            print(f"❌ No permission in {channel.name}")
         except discord.HTTPException as e:
-            print(f"❌ Failed to send embed: {e}")
-    else:
-        print(f"❌ No log channel configured for guild {guild.name}")
+            print(f"❌ Error: {e}")
     return False
 
 # ================= Eventos ==================
@@ -111,8 +108,12 @@ async def on_ready():
     try:
         synced = await bot.tree.sync()
         print(f"🔗 Synced {len(synced)} slash command(s).")
+        
     except Exception as e:
         print(f"❌ Error syncing commands: {e}")
+
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching,
+         name="A ler mensagens"))
 
     # Quando o bot ficar online, notifica se já houver canal de logs
     for guild in bot.guilds:
@@ -122,6 +123,7 @@ async def on_ready():
             color=0x00ff00
         )
         await send_embed(guild, embed)
+
 
 @bot.event
 async def on_message_edit(before, after):

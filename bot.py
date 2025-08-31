@@ -54,6 +54,22 @@ def save_guild_configs(data):
     with open(GUILD_CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
+# ================= Warnings System ==================
+WARNINGS_FILE = "warnings.json"
+
+def load_warnings():
+    """Load warnings from JSON file"""
+    try:
+        with open(WARNINGS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def save_warnings(data):
+    """Save warnings to JSON file"""
+    with open(WARNINGS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
 # carrega as configurações dos servidores
 guild_configs = load_guild_configs()
 
@@ -293,7 +309,7 @@ async def status(interaction: discord.Interaction):
     embed.add_field(name="Status", value="✅ Online and running", inline=False)
     embed.add_field(name="Uptime", value=f"{days}d {hours}h {minutes}m {seconds}s", inline=False)
     embed.add_field(name="Started", value=bot_start_time.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
-    embed.add_field(name="Commands", value="/status, /help, /setlogchannel", inline=False)
+    embed.add_field(name="Commands", value="/status, /help, /setlogchannel, /kick, /ban, /warn, /warnings, /poll", inline=False)
 
     await interaction.response.send_message(embed=embed)
 
@@ -307,6 +323,11 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/status", value="Mostra o status e uptime do bot.", inline=False)
     embed.add_field(name="/help", value="Mostra esta mensagem de ajuda.", inline=False)
     embed.add_field(name="/setlogchannel", value="Define o canal de logs para este servidor.", inline=False)
+    embed.add_field(name="/kick", value="Kick a user from the server.", inline=False)
+    embed.add_field(name="/ban", value="Ban a user from the server.", inline=False)
+    embed.add_field(name="/warn", value="Warn a user.", inline=False)
+    embed.add_field(name="/warnings", value="View warnings for a user.", inline=False)
+    embed.add_field(name="/poll", value="Create a poll.", inline=False)
     embed.set_footer(text=f"Bot: {bot.user}")
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -318,6 +339,78 @@ async def setlogchannel(interaction: discord.Interaction, canal: discord.TextCha
     set_guild_log_channel(guild_id, canal.id)
 
     await interaction.response.send_message(f"✅ Canal de logs definido para {canal.mention}", ephemeral=True)
+
+@bot.tree.command(name="kick", description="Kick a user from the server")
+@discord.app_commands.checks.has_permissions(kick_members=True)
+async def kick(interaction: discord.Interaction, user: discord.Member, reason: str = "No reason provided"):
+    try:
+        await user.kick(reason=reason)
+        await interaction.response.send_message(f"Kicked {user.mention} for: {reason}", ephemeral=True)
+    except discord.Forbidden:
+        await interaction.response.send_message("I don't have permission to kick this user.", ephemeral=True)
+    except discord.HTTPException as e:
+        await interaction.response.send_message(f"Error: {e}", ephemeral=True)
+
+@bot.tree.command(name="ban", description="Ban a user from the server")
+@discord.app_commands.checks.has_permissions(ban_members=True)
+async def ban(interaction: discord.Interaction, user: discord.Member, reason: str = "No reason provided"):
+    try:
+        await user.ban(reason=reason)
+        await interaction.response.send_message(f"Banned {user.mention} for: {reason}", ephemeral=True)
+    except discord.Forbidden:
+        await interaction.response.send_message("I don't have permission to ban this user.", ephemeral=True)
+    except discord.HTTPException as e:
+        await interaction.response.send_message(f"Error: {e}", ephemeral=True)
+
+@bot.tree.command(name="warn", description="Warn a user")
+@discord.app_commands.checks.has_permissions(kick_members=True)
+async def warn(interaction: discord.Interaction, user: discord.Member, reason: str):
+    warnings = load_warnings()
+    guild_id = str(interaction.guild.id)
+    user_id = str(user.id)
+    if guild_id not in warnings:
+        warnings[guild_id] = {}
+    if user_id not in warnings[guild_id]:
+        warnings[guild_id][user_id] = []
+    warnings[guild_id][user_id].append({
+        "reason": reason,
+        "by": str(interaction.user),
+        "time": str(datetime.datetime.now())
+    })
+    save_warnings(warnings)
+    await interaction.response.send_message(f"Warned {user.mention} for: {reason}", ephemeral=True)
+
+@bot.tree.command(name="warnings", description="View warnings for a user")
+async def warnings_command(interaction: discord.Interaction, user: discord.Member):
+    warnings = load_warnings()
+    guild_id = str(interaction.guild.id)
+    user_id = str(user.id)
+    if guild_id in warnings and user_id in warnings[guild_id]:
+        warns = warnings[guild_id][user_id]
+        embed = discord.Embed(title=f"Warnings for {user}", color=0xff0000)
+        for i, w in enumerate(warns, 1):
+            embed.add_field(name=f"Warning {i}", value=f"Reason: {w['reason']}\nBy: {w['by']}\nTime: {w['time']}", inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    else:
+        await interaction.response.send_message(f"{user.mention} has no warnings.", ephemeral=True)
+
+@bot.tree.command(name="poll", description="Create a poll")
+async def poll(interaction: discord.Interaction, question: str, option1: str, option2: str, option3: str = None, option4: str = None):
+    embed = discord.Embed(title="Poll", description=question, color=0x00ff00)
+    embed.add_field(name="1️⃣", value=option1, inline=False)
+    embed.add_field(name="2️⃣", value=option2, inline=False)
+    if option3:
+        embed.add_field(name="3️⃣", value=option3, inline=False)
+    if option4:
+        embed.add_field(name="4️⃣", value=option4, inline=False)
+    await interaction.response.send_message(embed=embed)
+    message = await interaction.original_response()
+    await message.add_reaction("1️⃣")
+    await message.add_reaction("2️⃣")
+    if option3:
+        await message.add_reaction("3️⃣")
+    if option4:
+        await message.add_reaction("4️⃣")
 
 # ================= Run ==================
 bot.run(TOKEN)

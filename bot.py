@@ -35,6 +35,8 @@ intents.message_content = True
 intents.members = True
 intents.guilds = True
 intents.messages = True
+intents.voice_states = True
+intents.reactions = True
 
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 
@@ -122,8 +124,14 @@ async def send_embed(guild, embed):
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
     try:
+        # Sync commands globally
         synced = await bot.tree.sync()
-        print(f"🔗 Synced {len(synced)} slash command(s).")
+        print(f"🔗 Synced {len(synced)} global slash command(s).")
+        
+        # Sync commands per guild for faster update during development (optional)
+        for guild in bot.guilds:
+            await bot.tree.sync(guild=guild)
+            print(f"🔗 Synced commands for guild {guild.name} ({guild.id})")
         
     except Exception as e:
         print(f"❌ Error syncing commands: {e}")
@@ -294,6 +302,61 @@ async def on_member_update(before, after):
         embed.set_footer(text=f"{bot.user} • {discord.utils.utcnow().strftime('%m/%d/%Y %I:%M %p')}")
         await send_embed(after.guild, embed)
 
+@bot.event
+async def on_voice_state_update(member, before, after):
+    if before.channel != after.channel:
+        if before.channel is None:
+            # Joined voice channel
+            embed = discord.Embed(title="🎤 Canal de Voz Entrada", color=0x3498db)
+            embed.add_field(name="User", value=member.mention, inline=False)
+            embed.add_field(name="Canal", value=after.channel.mention, inline=False)
+            embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+            await send_embed(member.guild, embed)
+        elif after.channel is None:
+            # Left voice channel
+            embed = discord.Embed(title="🎤 Canal de Voz Saída", color=0xe74c3c)
+            embed.add_field(name="User", value=member.mention, inline=False)
+            embed.add_field(name="Canal", value=before.channel.mention, inline=False)
+            embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+            await send_embed(member.guild, embed)
+
+@bot.event
+async def on_reaction_add(reaction, user):
+    if user.bot:
+        return
+    embed = discord.Embed(title="👍 Reaction Added", color=0x2ecc71)
+    embed.add_field(name="User", value=user.mention, inline=False)
+    embed.add_field(name="Messagem", value=f"[Jump to message]({reaction.message.jump_url})", inline=False)
+    embed.add_field(name="Reção", value=str(reaction.emoji), inline=False)
+    embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+    await send_embed(user.guild, embed)
+
+@bot.event
+async def on_reaction_remove(reaction, user):
+    if user.bot:
+        return
+    embed = discord.Embed(title="👎 Reaction Removed", color=0xe74c3c)
+    embed.add_field(name="User", value=user.mention, inline=False)
+    embed.add_field(name="Messagem", value=f"[Jump to message]({reaction.message.jump_url})", inline=False)
+    embed.add_field(name="Reação", value=str(reaction.emoji), inline=False)
+    embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+    await send_embed(user.guild, embed)
+
+@bot.event
+async def on_guild_channel_update(before, after):
+    if before.name != after.name:
+        embed = discord.Embed(title="📝 Nome do Canal Alterado", color=0xf1c40f)
+        embed.add_field(name="Canal", value=after.mention, inline=False)
+        embed.add_field(name="Nome Antigo", value=before.name, inline=False)
+        embed.add_field(name="Novo Nome", value=after.name, inline=False)
+        embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+        await send_embed(before.guild, embed)
+    if before.overwrites != after.overwrites:
+        embed = discord.Embed(title="🔒 Permissões do Canal Alteradas", color=0x9b59b6)
+        embed.add_field(name="Canal", value=after.mention, inline=False)
+        embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+        await send_embed(before.guild, embed)
+
 # ================= Slash Commands ==================
 @bot.tree.command(name="status", description="Mostra o status do bot")
 async def status(interaction: discord.Interaction):
@@ -309,8 +372,26 @@ async def status(interaction: discord.Interaction):
     embed.add_field(name="Status", value="✅ Online and running", inline=False)
     embed.add_field(name="Uptime", value=f"{days}d {hours}h {minutes}m {seconds}s", inline=False)
     embed.add_field(name="Started", value=bot_start_time.strftime("%Y-%m-%d %H:%M:%S UTC"), inline=False)
-    embed.add_field(name="Commands", value="/status, /help, /setlogchannel, /kick, /ban, /warn, /warnings, /poll", inline=False)
+    embed.add_field(name="Commands", value="/status, /help, /setlogchannel, /kick, /ban, /warn, /warnings, /poll, /userinfo", inline=False)
 
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="userinfo", description="Show information about a user")
+async def userinfo(interaction: discord.Interaction, user: discord.Member = None):
+    user = user or interaction.user
+    roles = [role.mention for role in user.roles if role.name != "@everyone"]
+    activity = None
+    if user.activity:
+        activity = str(user.activity.type).split('.')[-1].capitalize() + " " + (user.activity.name or "")
+    embed = discord.Embed(title=f"User Info - {user}", color=0x3498db)
+    embed.set_thumbnail(url=user.avatar.url if user.avatar else None)
+    embed.add_field(name="ID", value=user.id, inline=True)
+    embed.add_field(name="Display Name", value=user.display_name, inline=True)
+    embed.add_field(name="Account Created", value=user.created_at.strftime("%Y-%m-%d %H:%M:%S"), inline=False)
+    embed.add_field(name="Joined Server", value=user.joined_at.strftime("%Y-%m-%d %H:%M:%S") if user.joined_at else "Unknown", inline=False)
+    embed.add_field(name="Roles", value=", ".join(roles) if roles else "None", inline=False)
+    if activity:
+        embed.add_field(name="Activity", value=activity, inline=False)
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="help", description="Mostra a lista de comandos disponíveis")
@@ -328,6 +409,7 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/warn", value="Warn a user.", inline=False)
     embed.add_field(name="/warnings", value="View warnings for a user.", inline=False)
     embed.add_field(name="/poll", value="Create a poll.", inline=False)
+    embed.add_field(name="/userinfo", value="Show information about a user.", inline=False)
     embed.set_footer(text=f"Bot: {bot.user}")
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -340,27 +422,27 @@ async def setlogchannel(interaction: discord.Interaction, canal: discord.TextCha
 
     await interaction.response.send_message(f"✅ Canal de logs definido para {canal.mention}", ephemeral=True)
 
-@bot.tree.command(name="kick", description="Kick a user from the server")
+@bot.tree.command(name="kick", description="Expulsa um utilizador do servidor")
 @discord.app_commands.checks.has_permissions(kick_members=True)
 async def kick(interaction: discord.Interaction, user: discord.Member, reason: str = "No reason provided"):
     try:
         await user.kick(reason=reason)
-        await interaction.response.send_message(f"Kicked {user.mention} for: {reason}", ephemeral=True)
+        await interaction.response.send_message(f"Kicked {user.mention} por: {reason}", ephemeral=True)
     except discord.Forbidden:
-        await interaction.response.send_message("I don't have permission to kick this user.", ephemeral=True)
+        await interaction.response.send_message("Eu nao permissoes para dar.", ephemeral=True)
     except discord.HTTPException as e:
-        await interaction.response.send_message(f"Error: {e}", ephemeral=True)
+        await interaction.response.send_message(f"Erro: {e}", ephemeral=True)
 
-@bot.tree.command(name="ban", description="Ban a user from the server")
+@bot.tree.command(name="ban", description="Banir um pessoa do servidor")
 @discord.app_commands.checks.has_permissions(ban_members=True)
 async def ban(interaction: discord.Interaction, user: discord.Member, reason: str = "No reason provided"):
     try:
         await user.ban(reason=reason)
-        await interaction.response.send_message(f"Banned {user.mention} for: {reason}", ephemeral=True)
+        await interaction.response.send_message(f"Banido {user.mention} Por: {reason}", ephemeral=True)
     except discord.Forbidden:
-        await interaction.response.send_message("I don't have permission to ban this user.", ephemeral=True)
+        await interaction.response.send_message("Não tenho permissoes para banir este utilizador .", ephemeral=True)
     except discord.HTTPException as e:
-        await interaction.response.send_message(f"Error: {e}", ephemeral=True)
+        await interaction.response.send_message(f"Erro: {e}", ephemeral=True)
 
 @bot.tree.command(name="warn", description="Warn a user")
 @discord.app_commands.checks.has_permissions(kick_members=True)
@@ -380,21 +462,21 @@ async def warn(interaction: discord.Interaction, user: discord.Member, reason: s
     save_warnings(warnings)
     await interaction.response.send_message(f"Warned {user.mention} for: {reason}", ephemeral=True)
 
-@bot.tree.command(name="warnings", description="View warnings for a user")
+@bot.tree.command(name="warnings", description="Veja os warns de um utilizador")
 async def warnings_command(interaction: discord.Interaction, user: discord.Member):
     warnings = load_warnings()
     guild_id = str(interaction.guild.id)
     user_id = str(user.id)
     if guild_id in warnings and user_id in warnings[guild_id]:
         warns = warnings[guild_id][user_id]
-        embed = discord.Embed(title=f"Warnings for {user}", color=0xff0000)
+        embed = discord.Embed(title=f"Warnings para {user}", color=0xff0000)
         for i, w in enumerate(warns, 1):
-            embed.add_field(name=f"Warning {i}", value=f"Reason: {w['reason']}\nBy: {w['by']}\nTime: {w['time']}", inline=False)
+            embed.add_field(name=f"Warning {i}", value=f"Razão: {w['reason']}\nPor: {w['by']}\nTempo: {w['time']}", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
     else:
-        await interaction.response.send_message(f"{user.mention} has no warnings.", ephemeral=True)
+        await interaction.response.send_message(f"{user.mention} nao tem warns.", ephemeral=True)
 
-@bot.tree.command(name="poll", description="Create a poll")
+@bot.tree.command(name="poll", description="Crie uma poll")
 async def poll(interaction: discord.Interaction, question: str, option1: str, option2: str, option3: str = None, option4: str = None):
     embed = discord.Embed(title="Poll", description=question, color=0x00ff00)
     embed.add_field(name="1️⃣", value=option1, inline=False)

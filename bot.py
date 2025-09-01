@@ -326,7 +326,7 @@ async def on_reaction_add(reaction, user):
         return
     embed = discord.Embed(title="👍 Reação Adicionada", color=0x2ecc71)
     embed.add_field(name="User", value=user.mention, inline=False)
-    embed.add_field(name="Messagem", value=f"[Jump to message]({reaction.message.jump_url})", inline=False)
+    embed.add_field(name="Messagem", value=f"[Ir para Mensagem]({reaction.message.jump_url})", inline=False)
     embed.add_field(name="Reação", value=str(reaction.emoji), inline=False)
     embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
     await send_embed(user.guild, embed)

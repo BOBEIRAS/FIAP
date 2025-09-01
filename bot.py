@@ -324,10 +324,10 @@ async def on_voice_state_update(member, before, after):
 async def on_reaction_add(reaction, user):
     if user.bot:
         return
-    embed = discord.Embed(title="👍 Reaction Added", color=0x2ecc71)
+    embed = discord.Embed(title="👍 Reação Adicionada", color=0x2ecc71)
     embed.add_field(name="User", value=user.mention, inline=False)
     embed.add_field(name="Messagem", value=f"[Jump to message]({reaction.message.jump_url})", inline=False)
-    embed.add_field(name="Reção", value=str(reaction.emoji), inline=False)
+    embed.add_field(name="Reação", value=str(reaction.emoji), inline=False)
     embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
     await send_embed(user.guild, embed)
 
@@ -335,9 +335,9 @@ async def on_reaction_add(reaction, user):
 async def on_reaction_remove(reaction, user):
     if user.bot:
         return
-    embed = discord.Embed(title="👎 Reaction Removed", color=0xe74c3c)
+    embed = discord.Embed(title="👎 Reação removida", color=0xe74c3c)
     embed.add_field(name="User", value=user.mention, inline=False)
-    embed.add_field(name="Messagem", value=f"[Jump to message]({reaction.message.jump_url})", inline=False)
+    embed.add_field(name="Messagem", value=f"[ir para Mensagem]({reaction.message.jump_url})", inline=False)
     embed.add_field(name="Reação", value=str(reaction.emoji), inline=False)
     embed.add_field(name="Tempo", value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), inline=False)
     await send_embed(user.guild, embed)
@@ -404,12 +404,12 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/status", value="Mostra o status e uptime do bot.", inline=False)
     embed.add_field(name="/help", value="Mostra esta mensagem de ajuda.", inline=False)
     embed.add_field(name="/setlogchannel", value="Define o canal de logs para este servidor.", inline=False)
-    embed.add_field(name="/kick", value="Kick a user from the server.", inline=False)
-    embed.add_field(name="/ban", value="Ban a user from the server.", inline=False)
-    embed.add_field(name="/warn", value="Warn a user.", inline=False)
-    embed.add_field(name="/warnings", value="View warnings for a user.", inline=False)
-    embed.add_field(name="/poll", value="Create a poll.", inline=False)
-    embed.add_field(name="/userinfo", value="Show information about a user.", inline=False)
+    embed.add_field(name="/kick", value="Expula uma pessoa do servidor.", inline=False)
+    embed.add_field(name="/ban", value="Banir uma pessoa do servidor.", inline=False)
+    embed.add_field(name="/warn", value="Advertir um utilizador.", inline=False)
+    embed.add_field(name="/warnings", value="Ver as advertências de um utilizador.", inline=False)
+    embed.add_field(name="/poll", value="Criar um poll.", inline=False)
+    embed.add_field(name="/userinfo", value="Mostrar a informação sobre o utlizador.", inline=False)
     embed.set_footer(text=f"Bot: {bot.user}")
     
     await interaction.response.send_message(embed=embed, ephemeral=True)

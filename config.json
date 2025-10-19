@@ -1,8 +1,8 @@
 {
   "bot": {
-    "token": "YOUR DISCORD TOKEN BOT",
+    "token": "MTQwNTk0NTEwOTA2NDg0NzUxMA.GEiYCd.3i92nhd2MsVNncmN9F2aj7zm1qQqbOj810Uhjg",
     "prefix": "!",
-    "default_log_channel": "THE MAIN CHANNEL FOR THE LOGS"
+    "default_log_channel": "1411071295730225164"
   },
   "multi_server": {
     "enabled": true,
@@ -41,4 +41,3 @@
     "max_servers": 100
   }
 }
-

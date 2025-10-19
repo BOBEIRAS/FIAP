@@ -5,6 +5,7 @@ from threading import Thread
 from flask import Flask
 import datetime
 import json
+from googletrans import Translator
 
 # ================= Flask para manter vivo no Render ==================
 bot_start_time = datetime.datetime.now()
@@ -40,6 +41,8 @@ intents.reactions = True
 
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 
+translator = Translator()
+
 # ================= Multi-Server JSON Storage ==================
 GUILD_CONFIG_FILE = "guild_configs.json"
 
@@ -53,8 +56,11 @@ def load_guild_configs():
 
 def save_guild_configs(data):
     """Save guild configurations to JSON file"""
-    with open(GUILD_CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    try:
+        with open(GUILD_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving guild configs: {e}")
 
 # ================= Warnings System ==================
 WARNINGS_FILE = "warnings.json"
@@ -69,8 +75,11 @@ def load_warnings():
 
 def save_warnings(data):
     """Save warnings to JSON file"""
-    with open(WARNINGS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    try:
+        with open(WARNINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving warnings: {e}")
 
 # carrega as configurações dos servidores
 guild_configs = load_guild_configs()
@@ -81,7 +90,8 @@ def get_guild_config(guild_id):
     if guild_id_str not in guild_configs:
         guild_configs[guild_id_str] = {
             "log_channel": None,
-            "welcome_channel": None
+            "welcome_channel": None,
+            "translate_target_lang": "en"
         }
         save_guild_configs(guild_configs)
     return guild_configs[guild_id_str]
@@ -147,6 +157,43 @@ async def on_ready():
             color=0x00ff00
         )
         await send_embed(guild, embed)
+
+# ================= Auto Translator ==================
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    guild_id = str(message.guild.id) if message.guild else None
+    if not guild_id:
+        return
+
+    guild_config = get_guild_config(guild_id)
+    target_lang = guild_config.get("translate_target_lang", "en")
+
+    # Detect language
+    detected = translator.detect(message.content)
+    if detected.lang == target_lang:
+        # No need to translate if already in target language
+        await bot.process_commands(message)
+        return
+
+    try:
+        translation = translator.translate(message.content, dest=target_lang)
+        translated_text = translation.text
+    except Exception as e:
+        print(f"Translation error: {e}")
+        await bot.process_commands(message)
+        return
+
+    # Reply with translated text
+    reply_text = f"**Translated ({detected.lang} → {target_lang}):** {translated_text}"
+    try:
+        await message.reply(reply_text, mention_author=False)
+    except Exception as e:
+        print(f"Error sending translation reply: {e}")
+
+    await bot.process_commands(message)
 
 
 @bot.event
@@ -493,6 +540,14 @@ async def poll(interaction: discord.Interaction, question: str, option1: str, op
         await message.add_reaction("3️⃣")
     if option4:
         await message.add_reaction("4️⃣")
+
+@bot.tree.command(name="invite", description="Adiciona o bot ao servidor")
+async def invite(interaction: discord.Interaction):
+    client_id = "1405945109064847510"
+    permissions = 564051881053399
+    invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions={permissions}&scope=bot%20applications.commands"
+    embed = discord.Embed(title="Invite Bot", description=f"[Clicar aqui para adicionares o bot]({invite_url})", color=0x3498db)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # ================= Run ==================
 bot.run(TOKEN)

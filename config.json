@@ -1,8 +1,8 @@
 {
   "bot": {
-    "token": "MTQwNTk0NTEwOTA2NDg0NzUxMA.GEiYCd.3i92nhd2MsVNncmN9F2aj7zm1qQqbOj810Uhjg",
+    "token": "YOUR BOT TOKEN",
     "prefix": "!",
-    "default_log_channel": "1411071295730225164"
+    "default_log_channel": "YOUR MAIN LOGS CHANNEL ALLL WARNIGS"
   },
   "multi_server": {
     "enabled": true,
@@ -41,3 +41,4 @@
     "max_servers": 100
   }
 }
+
